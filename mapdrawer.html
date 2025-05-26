@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Tile Map Editor</title>
+  <style>
+    canvas { border: 1px solid black; image-rendering: pixelated; cursor: crosshair; }
+    body { font-family: sans-serif; }
+    button, input { margin: 5px; }
+  </style>
+</head>
+<body>
+
+<h2>Tile Map Editor</h2>
+<canvas id="mapCanvas" width="512" height="448"></canvas><br>
+<button onclick="exportMap()">Download JSON</button>
+<input type="file" id="loadFile" accept=".json">
+<pre id="output"></pre>
+<p id="brushIndicator">Current brush: Grass (1)</p>
+
+<script>
+const TILE_SIZE = 32;
+const TILES_X = 100;
+const TILES_Y = 100;
+
+const canvas = document.getElementById("mapCanvas");
+const ctx = canvas.getContext("2d");
+let brush = "grass";
+let isDragging = false;
+let isPanning = false;
+let panOffsetX = 0;
+let panOffsetY = 0;
+let startX, startY;
+const brushIndicator = document.getElementById("brushIndicator");
+
+let map = Array.from({ length: TILES_Y }, () =>
+  Array.from({ length: TILES_X }, () => "grass")
+);
+
+canvas.addEventListener("mousedown", (e) => {
+  isDragging = true;
+  const rect = canvas.getBoundingClientRect();
+  const x = Math.floor((e.clientX - rect.left + panOffsetX) / TILE_SIZE);
+  const y = Math.floor((e.clientY - rect.top + panOffsetY) / TILE_SIZE);
+
+  if (brush !== "0") {
+    if (x >= 0 && x < TILES_X && y >= 0 && y < TILES_Y) {
+      map[y][x] = brush;
+      drawMap();
+    }
+  } else {
+    isPanning = true;
+    startX = e.clientX;
+    startY = e.clientY;
+  }
+});
+
+canvas.addEventListener("mousemove", (e) => {
+  if (!isDragging) return;
+  const rect = canvas.getBoundingClientRect();
+  const x = Math.floor((e.clientX - rect.left + panOffsetX) / TILE_SIZE);
+  const y = Math.floor((e.clientY - rect.top + panOffsetY) / TILE_SIZE);
+
+  if (brush !== "0") {
+    if (x >= 0 && x < TILES_X && y >= 0 && y < TILES_Y) {
+      map[y][x] = brush;
+      drawMap();
+    }
+  } else if (isPanning) {
+    const dx = e.clientX - startX;
+    const dy = e.clientY - startY;
+    panOffsetX -= dx;
+    panOffsetY -= dy;
+    startX = e.clientX;
+    startY = e.clientY;
+    drawMap();
+  }
+});
+
+canvas.addEventListener("mouseup", () => {
+  isDragging = false;
+  isPanning = false;
+});
+
+canvas.addEventListener("mouseleave", () => {
+  isDragging = false;
+  isPanning = false;
+});
+
+document.addEventListener("keydown", (e) => {
+  switch (e.key) {
+    case "0":
+      brush = "0";
+      brushIndicator.textContent = "Current brush: Pan mode (0)";
+      canvas.style.cursor = "grab";
+      break;
+    case "1":
+      brush = "grass";
+      brushIndicator.textContent = "Current brush: Grass (1)";
+      canvas.style.cursor = "crosshair";
+      break;
+    case "2":
+      brush = "water";
+      brushIndicator.textContent = "Current brush: Water (2)";
+      canvas.style.cursor = "crosshair";
+      break;
+    case "3":
+      brush = "wall";
+      brushIndicator.textContent = "Current brush: Wall (3)";
+      canvas.style.cursor = "crosshair";
+      break;
+    case "4":
+      brush = "floor";
+      brushIndicator.textContent = "Current brush: Floor (4)";
+      canvas.style.cursor = "crosshair";
+      break;
+    case "ArrowUp":
+      panOffsetY -= TILE_SIZE;
+      drawMap();
+      break;
+    case "ArrowDown":
+      panOffsetY += TILE_SIZE;
+      drawMap();
+      break;
+    case "ArrowLeft":
+      panOffsetX -= TILE_SIZE;
+      drawMap();
+      break;
+    case "ArrowRight":
+      panOffsetX += TILE_SIZE;
+      drawMap();
+      break;
+  }
+});
+
+function drawMap() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  for (let y = 0; y < TILES_Y; y++) {
+    for (let x = 0; x < TILES_X; x++) {
+      const tile = map[y][x];
+      ctx.fillStyle = tile === "grass" ? "green" :
+                      tile === "water" ? "blue" :
+                      tile === "wall"  ? "gray" :
+                      tile === "floor" ? "#cccccc" : "black";
+      ctx.fillRect(x * TILE_SIZE - panOffsetX, y * TILE_SIZE - panOffsetY, TILE_SIZE, TILE_SIZE);
+      ctx.strokeStyle = "black";
+      ctx.strokeRect(x * TILE_SIZE - panOffsetX, y * TILE_SIZE - panOffsetY, TILE_SIZE, TILE_SIZE);
+    }
+  }
+}
+
+function exportMap() {
+  const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(map));
+  const dl = document.createElement("a");
+  dl.setAttribute("href", dataStr);
+  dl.setAttribute("download", "map.json");
+  document.body.appendChild(dl);
+  dl.click();
+  dl.remove();
+}
+
+document.getElementById("loadFile").addEventListener("change", function () {
+  const file = this.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = function (e) {
+    try {
+      map = JSON.parse(e.target.result);
+      drawMap();
+    } catch (err) {
+      alert("Invalid map file.");
+    }
+  };
+  reader.readAsText(file);
+});
+
+drawMap();
+</script>
+
+</body>
+</html>
