@@ -6,8 +6,22 @@ var up = false;
 var down = false;
 var left = false;
 var right = false;
+var toggleBox = false;
 var pastTime = 0;
 var movingTime = 0;
+// Find your own textures
+var grassTexture = new Image();
+grassTexture.src = 'textures/grass.jpg';
+var waterTexture = new Image();
+waterTexture.src = 'textures/water.jpg';
+var wallTexture = new Image();
+wallTexture.src = 'textures/wall.jpg'
+var floorTexture = new Image();
+floorTexture.src = 'textures/floor.jpg'
+var playerTextureRight = new Image();
+playerTextureRight.src = 'textures/rightplayer.png'
+var playerTextureLeft = new Image();
+playerTextureLeft.src = 'textures/leftplayer.png'
 const TILES_X = 16;
 const TILES_Y = 14;
 const TILE_SIZE = 32;
@@ -15,6 +29,7 @@ const centerTileX = Math.floor(TILES_X / 2);
 const centerTileY = Math.floor(TILES_Y / 2);
 const GAME_WIDTH = TILES_X * TILE_SIZE;   // 512
 const GAME_HEIGHT = TILES_Y * TILE_SIZE;  // 448
+const ENCOUNTERABLE_TILETYPES = ["grass"];
 
 document.addEventListener('keydown', (e)=> {
         if (e.repeat == false){
@@ -29,6 +44,9 @@ document.addEventListener('keydown', (e)=> {
             }
             if (e.key == "ArrowLeft") {
                 left = true;
+            }
+            if (e.key == "z") {
+                toggleBox = true;
             }
         }
     }
@@ -46,6 +64,9 @@ document.addEventListener('keyup', (e)=> {
         }
         if (e.key == "ArrowLeft") {
             left = false;
+        }
+        if (e.key == "z") {
+            toggleBox = false;
         }
     }
 )
@@ -89,6 +110,7 @@ class GrassTile extends Tile {
         const screenY = (this.y - rooty) * TILE_SIZE;
         ctx.fillStyle = "green";
         ctx.fillRect(screenX, screenY, TILE_SIZE, TILE_SIZE);
+        // ctx.drawImage(grassTexture, screenX, screenY, TILE_SIZE, TILE_SIZE);
     }
 }
 
@@ -103,6 +125,7 @@ class WaterTile extends Tile {
         const screenY = (this.y - rooty) * TILE_SIZE;
         ctx.fillStyle = "blue";
         ctx.fillRect(screenX, screenY, TILE_SIZE, TILE_SIZE);
+        // ctx.drawImage(waterTexture, screenX, screenY, TILE_SIZE, TILE_SIZE);
     }
 }
 
@@ -117,6 +140,7 @@ class WallTile extends Tile {
         const screenY = (this.y - rooty) * TILE_SIZE;
         ctx.fillStyle = "gray";
         ctx.fillRect(screenX, screenY, TILE_SIZE, TILE_SIZE);
+        // ctx.drawImage(wallTexture, screenX, screenY, TILE_SIZE, TILE_SIZE);
     }
 }
 
@@ -124,13 +148,14 @@ class FloorTile extends Tile {
     constructor(x,y){
         super(x,y);
         this.passable=true;
-        this.type="grass";
+        this.type="floor";
     }
     render(ctx) {
         const screenX = (this.x - rootx) * TILE_SIZE;
         const screenY = (this.y - rooty) * TILE_SIZE;
         ctx.fillStyle = "#cccccc";
         ctx.fillRect(screenX, screenY, TILE_SIZE, TILE_SIZE);
+        // ctx.drawImage(floorTexture, screenX, screenY, TILE_SIZE, TILE_SIZE);
     }
 }
 
@@ -144,12 +169,18 @@ class OverworldPlayer {
         this.encounterCounter = 0;
         this.encounterCounterPerStep = encounterCounterPerStep;
         this.encounterCooldownReset = this.encounterCooldown;
+        this.right = false;
     }
     render(ctx){
         ctx.fillStyle = this.color;
         const screenX = (this.x - rootx) * TILE_SIZE;
         const screenY = (this.y - rooty) * TILE_SIZE;
-        ctx.fillRect(screenX, screenY, TILE_SIZE, TILE_SIZE);    
+        ctx.fillRect(screenX, screenY, TILE_SIZE, TILE_SIZE);
+        // if (this.flipped) {
+        //     ctx.drawImage(playerTextureRight, screenX, screenY, TILE_SIZE, TILE_SIZE);
+        // } else {
+        //     ctx.drawImage(playerTextureLeft, screenX, screenY, TILE_SIZE, TILE_SIZE);
+        // }
     }
     move(direction){
         switch (direction) {
@@ -160,8 +191,7 @@ class OverworldPlayer {
                         if (rooty > 0 && this.y - rooty < centerTileY){
                             rooty-=1;
                         }
-                        this.encounterCooldown > 0 ? this.encounterCooldown -= 1 : this.encounterCounter += this.encounterCounterPerStep;
-                        this.randomEncounterCheck();
+                        this.randomEncounterAdder();
                     }
                 }
                 break;
@@ -172,8 +202,7 @@ class OverworldPlayer {
                         if (rooty+TILES_Y < tiles.length && this.y - rooty > centerTileY){
                             rooty+=1;
                         }
-                        this.encounterCooldown > 0 ? this.encounterCooldown -= 1 : this.encounterCounter += this.encounterCounterPerStep;
-                        this.randomEncounterCheck();
+                        this.randomEncounterAdder();
                     }
                 }
                 break;
@@ -184,10 +213,10 @@ class OverworldPlayer {
                         if (rootx > 0 && this.x - rootx < centerTileX){
                             rootx -= 1;
                         }
-                        this.encounterCooldown > 0 ? this.encounterCooldown -= 1 : this.encounterCounter += this.encounterCounterPerStep;
-                        this.randomEncounterCheck();
+                        this.randomEncounterAdder();
                     }
                 }
+                this.flipped = false;
                 break;
             case "right":
                 if (this.x+1 < tiles[this.y].length){
@@ -196,27 +225,71 @@ class OverworldPlayer {
                         if (rootx+TILES_X < tiles[0].length && this.x - rootx > centerTileX){
                             rootx += 1;
                         }
-                        this.encounterCooldown > 0 ? this.encounterCooldown -= 1 : this.encounterCounter += this.encounterCounterPerStep;
-                        this.randomEncounterCheck();
+                        this.randomEncounterAdder();
                     }
                 }
+                this.flipped = true;
                 break;
         }
     }
     randomEncounterCheck(){
-        if (Math.floor(Math.random() * 256)<this.encounterCounter/256){
-            if (this.randomEncounterStart()){
-                console.log("Won random encounter");
-            } else {
-                console.log("Lost random encounter");
+            if (Math.floor(Math.random() * 256) < this.encounterCounter / 256) {
+                if (this.randomEncounterStart()) {
+                    console.log("Won random encounter");
+                } else {
+                    console.log("Lost random encounter");
+                }
+                this.encounterCounter = 0;
+                this.encounterCooldown = this.encounterCooldownReset;
             }
-            this.encounterCounter = 0;
-            this.encounterCooldown = this.encounterCooldownReset;
-        }
     }
     randomEncounterStart(){
         console.log("Random encounter"); //this will at least start the random encounter 
         return true; //will probably return true on win, false on lose
+    }
+    randomEncounterAdder(){
+        if (ENCOUNTERABLE_TILETYPES.includes(tiles[this.y][this.x].type)){
+            this.encounterCooldown > 0 ? this.encounterCooldown -= 1 : this.encounterCounter += this.encounterCounterPerStep;
+            this.randomEncounterCheck();
+        }
+        console.log("Encounter Counter: " + this.encounterCounter);
+        console.log("Encounter Cooldown: " + this.encounterCooldown);
+    }
+}
+
+class TextBox{
+    constructor(text, color, picture){
+        this.text = text;
+        this.picture = picture;
+        this.picture == undefined ? this.picturePassed = false : this.picturePassed = true;
+        this.color = color;
+    }
+    render(ctx, canvas){
+    const boxX = canvas.width / 10;
+    const boxY = canvas.height / 10;
+    const boxW = canvas.width * 0.8;
+    const boxH = canvas.height * 0.2;
+
+    ctx.fillStyle = this.color;
+    ctx.strokeStyle = "white";
+    ctx.rect(boxX, boxY, boxW, boxH);
+    ctx.fill();
+    ctx.stroke();
+
+    if (this.picturePassed) {
+        ctx.drawImage(this.picture, boxX + 20, boxY + 20, boxH - 40, boxH - 40); // image square inside the box
+    }
+
+    ctx.fillStyle = "white";
+    ctx.font = "16px sans-serif";
+    ctx.fillText(this.text, boxX + (this.picturePassed ? boxH : 20), boxY + 30);
+}
+
+    delete() {
+        this.text = null;
+        this.picture = null;
+        this.picturePassed = false;
+        this.color = null;
     }
 }
 
@@ -261,12 +334,14 @@ async function loadMapTiles2D(url) {
 
 let tiles;
 let player;
+let helloBox;
 async function start(){
     //tiles array is stored y, x. each y row is an arraw and has the object at its x
     //tiles = generateTileMap();
     tiles = await loadMapTiles2D('scripts/map(5).json');
 
     player = new OverworldPlayer(centerTileX, centerTileY, "#FFDFC4", 10, 3, 192);
+    helloBox = new TextBox("Hello", "blue");
     loop();
 }
 
@@ -282,6 +357,7 @@ function loop(currentTime){
             };
         });
     });
+    if (toggleBox) helloBox.render(internalCtx, internalCanvas);
     renderToScreen();
     if (movingTime <= 0){
         if (up) {
