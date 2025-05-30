@@ -1,0 +1,80 @@
+{
+  "TestChar": {
+    "name": "TestChar",
+    "color": "red",
+    "textColor" : "blue",
+    "x": 10,
+    "y": 5,
+    "visible": true,
+    "nodeOn": "dialogue",
+    "branches": {
+      "dialogue": {
+      "id": "root",
+      "text": "Hello, traveler!",
+      "next": {
+        "Who are you?": "who",
+        "Goodbye": null
+      },
+      "onComplete": {
+        "noContinue": false
+      }
+      },
+      "who": {
+        "id": "who",
+        "text": "I'm just a test character.",
+        "next": {
+          "Okay.": null
+        },
+        "onComplete": {
+          "moveTo": { "x": 30, "y": 5 },
+          "noContinue": false
+        }
+      }
+    }
+  },
+  "AnotherChar": {
+    "name": "AnotherChar",
+    "color": "yellow",
+    "textColor": "red",
+    "x": 50,
+    "y": 6,
+    "visible": true,
+    "nodeOn": "dialogue",
+    "branches": {
+      "dialogue": {
+        "id": "root",
+        "text": "Greetings, traveler! What brings you here?",
+        "next": {
+          "Tell me more.": "moreInfo",
+          "Goodbye": null
+        },
+        "onComplete": {
+          "noContinue": false
+        }
+      },
+      "moreInfo": {
+        "id": "moreInfo",
+        "text": "I'm just a wandering merchant looking for rare items.",
+        "next": {
+          "Sad": "sad",
+          "Interesting!": null
+        },
+        "onComplete": {
+          "moveTo": { "x": 20, "y": 12 },
+          "setVisible": true,
+          "noContinue" : true
+        }
+      },
+      "sad": {
+        "id": "sad",
+        "text" : "I'm so sad I stubbed my pinky toe",
+        "next": {
+          "Haha idiot": null
+        },
+        "onComplete": {
+          "noContinue": false
+        }
+      }
+    }
+  }
+}

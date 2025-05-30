@@ -7,8 +7,12 @@ var down = false;
 var left = false;
 var right = false;
 var toggleBox = false;
+let npcs = [];
 var pastTime = 0;
 var movingTime = 0;
+let toggleBoxCooldown = 0;
+var toggleBoxCooldownReset = 15;
+let functionQueue = [];
 // Find your own textures
 var grassTexture = new Image();
 grassTexture.src = 'textures/grass.jpg';
@@ -31,8 +35,61 @@ const GAME_WIDTH = TILES_X * TILE_SIZE;   // 512
 const GAME_HEIGHT = TILES_Y * TILE_SIZE;  // 448
 const ENCOUNTERABLE_TILETYPES = ["grass"];
 
-document.addEventListener('keydown', (e)=> {
-        if (e.repeat == false){
+const dialogueState = {
+    active: false,
+    menuOptions: null,
+    menuIndex: 0,
+    npcid: null,
+    selectOption: function (option) {
+        const prevNode = npcs[this.npcid].nodeOn;
+        const branch = npcs[this.npcid].branches[prevNode];
+        const nextNode = branch.next[option];
+        const oc = branch.onComplete || {};
+        const noContinue = oc.noContinue === true;
+        if (oc.moveTo) {
+            tiles[npcs[this.npcid].y][npcs[this.npcid].x].passable = true;
+            npcs[this.npcid].x = oc.moveTo.x;
+            npcs[this.npcid].y = oc.moveTo.y;
+            tiles[npcs[this.npcid].y][npcs[this.npcid].x].passable = false;
+        }
+        if (oc.setVisible !== undefined) {
+            npcs[this.npcid].visible = oc.setVisible;
+        }
+        npcs[this.npcid].nodeOn = nextNode;
+        this.active = false;
+        this.menuOptions = [];
+        this.menuIndex = 0;
+        textBoxLayer = [];
+        if (nextNode && !noContinue) {
+            const func = function () {talkToNPC(dialogueState.npcid)};
+            functionQueue.push(func);
+        }
+    }
+};
+
+document.addEventListener('keydown', (e) => {
+    if (e.repeat == false) {
+        if (dialogueState.active) {
+            if (e.key === "ArrowUp") {
+                dialogueState.menuIndex--;
+                if (dialogueState.menuIndex < 0) {
+                    dialogueState.menuIndex = dialogueState.menuOptions.length - 1;
+                }
+                e.preventDefault();
+            } else if (e.key === "ArrowDown") {
+                dialogueState.menuIndex++;
+                if (dialogueState.menuIndex >= dialogueState.menuOptions.length) {
+                    dialogueState.menuIndex = 0;
+                }
+                e.preventDefault();
+            } else if (e.key === "z") {
+                const selectedOption = dialogueState.menuOptions[dialogueState.menuIndex];
+                if (selectedOption) {
+                    dialogueState.selectOption(selectedOption);
+                }
+                e.preventDefault();
+            }
+        } else {
             if (e.key == "ArrowUp") {
                 up = true;
             }
@@ -50,7 +107,7 @@ document.addEventListener('keydown', (e)=> {
             }
         }
     }
-)
+});
 
 document.addEventListener('keyup', (e)=> {
         if (e.key == "ArrowUp") {
@@ -89,13 +146,18 @@ function between(num, small, big){
     return num >= small && num <= big;
 }
 
+function onscreen(x, y){
+    return between(x, rootx, rootx+TILES_X) && between(y, rooty, rooty+TILES_Y);
+}
+
 class Tile {
     constructor(x, y) {
         this.x=x;
         this.y=y;
+        this.npc=undefined;
     }
     onscreen(){
-        return between(this.x, rootx, rootx+TILES_X) && between(this.y, rooty, rooty+TILES_Y);
+        return onscreen(this.x, this.y)
     }
 }
 
@@ -170,6 +232,7 @@ class OverworldPlayer {
         this.encounterCounterPerStep = encounterCounterPerStep;
         this.encounterCooldownReset = this.encounterCooldown;
         this.right = false;
+        this.facing = "right";
     }
     render(ctx){
         ctx.fillStyle = this.color;
@@ -231,6 +294,35 @@ class OverworldPlayer {
                 this.flipped = true;
                 break;
         }
+        this.direction = direction;
+    }
+    check(){
+        let key;
+        switch(this.direction){
+            case "up":
+                key = [this.x, this.y-1].toString();
+                break;
+            case "down":
+                key = [this.x, this.y+1].toString();
+                break;
+            case "left":
+                key = [this.x-1, this.y].toString();
+                break;
+            case "right":
+                key = [this.x+1, this.y].toString();
+                break;
+        }
+        let npcInDirection = undefined;
+        for (let i = 0; i < npcs.length; i++){
+            if ([npcs[i].x, npcs[i].y].toString() == key){
+                npcInDirection = i;
+                break;
+            }
+        }
+        if (npcInDirection != undefined){
+            toggleBoxCooldown = toggleBoxCooldownReset;
+            talkToNPC(npcInDirection);
+        }
     }
     randomEncounterCheck(){
             if (Math.floor(Math.random() * 256) < this.encounterCounter / 256) {
@@ -258,7 +350,7 @@ class OverworldPlayer {
 }
 
 class TextBox{
-    constructor(text, color, picture){
+    constructor(text, color = "blue", picture){
         this.text = text;
         this.picture = picture;
         this.picture == undefined ? this.picturePassed = false : this.picturePassed = true;
@@ -274,6 +366,20 @@ class TextBox{
     ctx.strokeStyle = "white";
     ctx.rect(boxX, boxY, boxW, boxH);
     ctx.fill();
+    const words = this.text.split(" ");
+    let line = "", y = boxY + 30;
+    for (let n = 0; n < words.length; n++) {
+        const testLine = line + words[n] + " ";
+        const metrics = ctx.measureText(testLine);
+        if (metrics.width > boxW - 40) {
+            ctx.fillText(line, boxX + (this.picturePassed ? boxH : 20), y);
+            line = words[n] + " ";
+            y += 20;
+        } else {
+            line = testLine;
+        }
+    }
+    ctx.fillText(line, boxX + (this.picturePassed ? boxH : 20), y);
     ctx.stroke();
 
     if (this.picturePassed) {
@@ -291,6 +397,38 @@ class TextBox{
         this.picturePassed = false;
         this.color = null;
     }
+}
+
+function moveNPC(npcid, x, y){
+    npcs[npcid].x = x;
+    npcs[npcid].y = y;
+}
+
+function setNPCVisibility(npcid, visibility){
+    npcs[npcid].visible = visibility;
+}
+
+function talkToNPC(npcid){
+    if (npcs[npcid] == undefined) {
+        console.error(`NPC with id ${npcid} is undefined.`);
+        return;
+    }
+    if (npcs[npcid].nodeOn == null){
+        return;
+    }
+    textOn = npcs[npcid].nodeOn;
+    console.log(textOn);
+    textBoxLayer.push(new TextBox(npcs[npcid].branches[textOn].text, npcs[npcid].textColor));
+        const nextOptions = npcs[npcid].branches[textOn].next;
+        const nextKeys = Object.keys(nextOptions);
+        if (nextKeys.length > 0) {
+            dialogueState.npcid = npcid;
+            dialogueState.active = true;
+            dialogueState.menuOptions = nextKeys;
+            dialogueState.menuIndex = 0;
+            dialogueState.npcid = npcid;
+            dialogueState.nextOptions = nextOptions;
+        }
 }
 
 function generateTileMap(width = 100, height = 100) {
@@ -314,6 +452,13 @@ function generateTileMap(width = 100, height = 100) {
     return map;
 }
 
+function npcRender (npc, ctx) {
+    ctx.fillStyle = npc.color;
+    const screenX = (npc.x - rootx) * TILE_SIZE;
+    const screenY = (npc.y - rooty) * TILE_SIZE;
+    ctx.fillRect(screenX, screenY, TILE_SIZE, TILE_SIZE);
+}
+
 async function loadMapTiles2D(url) {
   const response = await fetch(url);
   const mapData = await response.json();
@@ -332,16 +477,67 @@ async function loadMapTiles2D(url) {
   return tiles;
 }
 
+async function loadNPCData(url) {
+    try {
+        const response = await fetch(url);
+        const jsonData = await response.json();
+
+        for (const key in jsonData){
+            item = jsonData[key];
+            npcs.push(item);
+            tiles[item.y][item.x].passable = false;
+        }
+    } catch (error) {
+        console.error('Error fetching or processing data:', error);
+    }
+}
+
+function drawDialogueMenu() {
+    if (!dialogueState.active) return;
+
+    const ctx = internalCtx;
+
+    const x = 50;
+    const y = 300;
+    const width = 300;
+    const optionHeight = 30;
+    const height = optionHeight * dialogueState.menuOptions.length + 20;
+
+    ctx.fillStyle = "#0033cc";
+    ctx.fillRect(x, y, width, height);
+
+    ctx.strokeStyle = "#ffffff";
+    ctx.lineWidth = 2;
+    ctx.strokeRect(x, y, width, height);
+
+    ctx.font = "18px monospace";
+    ctx.textBaseline = "middle";
+
+    dialogueState.menuOptions.forEach((option, index) => {
+        if (index === dialogueState.menuIndex) {
+            ctx.fillStyle = "#ffff66";
+            ctx.fillRect(x + 5, y + 10 + index * optionHeight, width - 10, optionHeight);
+            ctx.fillStyle = "#000000";
+        } else {
+            ctx.fillStyle = "#ffffff";
+        }
+
+        ctx.fillText(option, x + 10, y + 10 + index * optionHeight + optionHeight / 2);
+    });
+}
+
+
 let tiles;
 let player;
-let helloBox;
+let textBoxLayer = [];
 async function start(){
     //tiles array is stored y, x. each y row is an arraw and has the object at its x
     //tiles = generateTileMap();
     tiles = await loadMapTiles2D('scripts/map(5).json');
-
+    await loadNPCData('scripts/npcs.json');
     player = new OverworldPlayer(centerTileX, centerTileY, "#FFDFC4", 10, 3, 192);
-    helloBox = new TextBox("Hello", "blue");
+    textBoxLayer.push(new TextBox("Hello", "blue"));
+    textBoxLayer.push(new TextBox("World", "blue"));
     loop();
 }
 
@@ -357,9 +553,16 @@ function loop(currentTime){
             };
         });
     });
-    if (toggleBox) helloBox.render(internalCtx, internalCanvas);
+    npcs.forEach(npc => {
+        if (onscreen(npc.x, npc.y) && npc.visible){
+            npcRender(npc, internalCtx);
+        }
+    });
+    if (textBoxLayer.length > 0) textBoxLayer.at(0).render(internalCtx, internalCanvas);
+    drawDialogueMenu();
+
     renderToScreen();
-    if (movingTime <= 0){
+    if (movingTime <= 0 && textBoxLayer.length == 0){
         if (up) {
             player.move("up");
             movingTime = player.moveSpeed;
@@ -373,6 +576,24 @@ function loop(currentTime){
             player.move("right");
             movingTime = player.moveSpeed;
         }
+    }
+    if (toggleBoxCooldown > 0) toggleBoxCooldown-=1;
+    if (toggleBox && toggleBoxCooldown <= 0) {
+        if (textBoxLayer.length > 0) {
+            textBoxLayer.shift();
+            toggleBoxCooldown = toggleBoxCooldownReset;
+        };
+    }
+
+    if (textBoxLayer.length <= 0 && functionQueue.length > 0){
+        functionQueue.forEach(func => {
+            func();
+        });
+        functionQueue = [];
+    }
+
+    if (toggleBox && textBoxLayer.length <= 0 && toggleBoxCooldown == 0){
+        player.check();
     }
 
     if (movingTime > 0){
