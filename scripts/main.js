@@ -67,6 +67,11 @@ const dialogueState = {
     }
 };
 
+const battleState = {
+    active: false,
+    battle: null
+}
+
 document.addEventListener('keydown', (e) => {
     if (e.repeat == false) {
         if (dialogueState.active) {
@@ -150,6 +155,10 @@ function onscreen(x, y){
     return between(x, rootx, rootx+TILES_X) && between(y, rooty, rooty+TILES_Y);
 }
 
+function getRndInteger(min, max) {
+  return Math.floor(Math.random() * (max - min + 1) ) + min;
+}
+
 class Tile {
     constructor(x, y) {
         this.x=x;
@@ -222,7 +231,7 @@ class FloorTile extends Tile {
 }
 
 class OverworldPlayer {
-    constructor(x,y,color, moveSpeed, encounterCooldown, encounterCounterPerStep){
+    constructor(x,y,color, moveSpeed, encounterCooldown, encounterCounterPerStep, startHP, resistances){
         this.x=x;
         this.y=y;
         this.color = color;
@@ -233,6 +242,9 @@ class OverworldPlayer {
         this.encounterCooldownReset = this.encounterCooldown;
         this.right = false;
         this.facing = "right";
+        this.spawnHP = startHP;
+        this.hp = startHP;
+        this.resistances = resistances;
     }
     render(ctx){
         ctx.fillStyle = this.color;
@@ -535,7 +547,7 @@ async function start(){
     //tiles = generateTileMap();
     tiles = await loadMapTiles2D('scripts/map(5).json');
     await loadNPCData('scripts/npcs.json');
-    player = new OverworldPlayer(centerTileX, centerTileY, "#FFDFC4", 10, 3, 192);
+    player = new OverworldPlayer(centerTileX, centerTileY, "#FFDFC4", 10, 3, 192, 100, ["fire", "ice"]);
     textBoxLayer.push(new TextBox("Hello", "blue"));
     textBoxLayer.push(new TextBox("World", "blue"));
     loop();
