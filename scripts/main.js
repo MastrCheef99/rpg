@@ -7,7 +7,6 @@ var down = false;
 var left = false;
 var right = false;
 var toggleBox = false;
-let npcs = [];
 var pastTime = 0;
 var movingTime = 0;
 let toggleBoxCooldown = 0;
@@ -35,81 +34,22 @@ const GAME_WIDTH = TILES_X * TILE_SIZE;   // 512
 const GAME_HEIGHT = TILES_Y * TILE_SIZE;  // 448
 const ENCOUNTERABLE_TILETYPES = ["grass"];
 
-const dialogueState = {
-    active: false,
-    menuOptions: null,
-    menuIndex: 0,
-    npcid: null,
-    selectOption: function (option) {
-        const prevNode = npcs[this.npcid].nodeOn;
-        const branch = npcs[this.npcid].branches[prevNode];
-        const nextNode = branch.next[option];
-        const oc = branch.onComplete || {};
-        const noContinue = oc.noContinue === true;
-        if (oc.moveTo) {
-            tiles[npcs[this.npcid].y][npcs[this.npcid].x].passable = true;
-            npcs[this.npcid].x = oc.moveTo.x;
-            npcs[this.npcid].y = oc.moveTo.y;
-            tiles[npcs[this.npcid].y][npcs[this.npcid].x].passable = false;
-        }
-        if (oc.setVisible !== undefined) {
-            npcs[this.npcid].visible = oc.setVisible;
-        }
-        npcs[this.npcid].nodeOn = nextNode;
-        this.active = false;
-        this.menuOptions = [];
-        this.menuIndex = 0;
-        textBoxLayer = [];
-        if (nextNode && !noContinue) {
-            const func = function () {talkToNPC(dialogueState.npcid)};
-            functionQueue.push(func);
-        }
-    }
-};
-
-const battleState = {
-    active: false,
-    battle: null
-}
-
 document.addEventListener('keydown', (e) => {
     if (e.repeat == false) {
-        if (dialogueState.active) {
-            if (e.key === "ArrowUp") {
-                dialogueState.menuIndex--;
-                if (dialogueState.menuIndex < 0) {
-                    dialogueState.menuIndex = dialogueState.menuOptions.length - 1;
-                }
-                e.preventDefault();
-            } else if (e.key === "ArrowDown") {
-                dialogueState.menuIndex++;
-                if (dialogueState.menuIndex >= dialogueState.menuOptions.length) {
-                    dialogueState.menuIndex = 0;
-                }
-                e.preventDefault();
-            } else if (e.key === "z") {
-                const selectedOption = dialogueState.menuOptions[dialogueState.menuIndex];
-                if (selectedOption) {
-                    dialogueState.selectOption(selectedOption);
-                }
-                e.preventDefault();
-            }
-        } else {
-            if (e.key == "ArrowUp") {
-                up = true;
-            }
-            if (e.key == "ArrowRight") {
-                right = true;
-            }
-            if (e.key == "ArrowDown") {
-                down = true;
-            }
-            if (e.key == "ArrowLeft") {
-                left = true;
-            }
-            if (e.key == "z") {
-                toggleBox = true;
-            }
+        if (e.key == "ArrowUp") {
+            up = true;
+        }
+        if (e.key == "ArrowRight") {
+            right = true;
+        }
+        if (e.key == "ArrowDown") {
+            down = true;
+        }
+        if (e.key == "ArrowLeft") {
+            left = true;
+        }
+        if (e.key == "z") {
+            toggleBox = true;
         }
     }
 });
@@ -242,6 +182,7 @@ class OverworldPlayer {
         this.encounterCooldownReset = this.encounterCooldown;
         this.right = false;
         this.facing = "right";
+        //Future - Make a new class for the player in battle
         this.spawnHP = startHP;
         this.hp = startHP;
         this.resistances = resistances;
@@ -324,17 +265,7 @@ class OverworldPlayer {
                 key = [this.x+1, this.y].toString();
                 break;
         }
-        let npcInDirection = undefined;
-        for (let i = 0; i < npcs.length; i++){
-            if ([npcs[i].x, npcs[i].y].toString() == key){
-                npcInDirection = i;
-                break;
-            }
-        }
-        if (npcInDirection != undefined){
-            toggleBoxCooldown = toggleBoxCooldownReset;
-            talkToNPC(npcInDirection);
-        }
+        //TODO: Check for npc in the direction and toggle talking to them
     }
     randomEncounterCheck(){
             if (Math.floor(Math.random() * 256) < this.encounterCounter / 256) {
@@ -361,6 +292,7 @@ class OverworldPlayer {
     }
 }
 
+//likely alright for now
 class TextBox{
     constructor(text, color = "blue", picture){
         this.text = text;
@@ -402,45 +334,6 @@ class TextBox{
     ctx.font = "16px sans-serif";
     ctx.fillText(this.text, boxX + (this.picturePassed ? boxH : 20), boxY + 30);
 }
-
-    delete() {
-        this.text = null;
-        this.picture = null;
-        this.picturePassed = false;
-        this.color = null;
-    }
-}
-
-function moveNPC(npcid, x, y){
-    npcs[npcid].x = x;
-    npcs[npcid].y = y;
-}
-
-function setNPCVisibility(npcid, visibility){
-    npcs[npcid].visible = visibility;
-}
-
-function talkToNPC(npcid){
-    if (npcs[npcid] == undefined) {
-        console.error(`NPC with id ${npcid} is undefined.`);
-        return;
-    }
-    if (npcs[npcid].nodeOn == null){
-        return;
-    }
-    textOn = npcs[npcid].nodeOn;
-    console.log(textOn);
-    textBoxLayer.push(new TextBox(npcs[npcid].branches[textOn].text, npcs[npcid].textColor));
-        const nextOptions = npcs[npcid].branches[textOn].next;
-        const nextKeys = Object.keys(nextOptions);
-        if (nextKeys.length > 0) {
-            dialogueState.npcid = npcid;
-            dialogueState.active = true;
-            dialogueState.menuOptions = nextKeys;
-            dialogueState.menuIndex = 0;
-            dialogueState.npcid = npcid;
-            dialogueState.nextOptions = nextOptions;
-        }
 }
 
 function generateTileMap(width = 100, height = 100) {
@@ -464,13 +357,6 @@ function generateTileMap(width = 100, height = 100) {
     return map;
 }
 
-function npcRender (npc, ctx) {
-    ctx.fillStyle = npc.color;
-    const screenX = (npc.x - rootx) * TILE_SIZE;
-    const screenY = (npc.y - rooty) * TILE_SIZE;
-    ctx.fillRect(screenX, screenY, TILE_SIZE, TILE_SIZE);
-}
-
 async function loadMapTiles2D(url) {
   const response = await fetch(url);
   const mapData = await response.json();
@@ -489,21 +375,7 @@ async function loadMapTiles2D(url) {
   return tiles;
 }
 
-async function loadNPCData(url) {
-    try {
-        const response = await fetch(url);
-        const jsonData = await response.json();
-
-        for (const key in jsonData){
-            item = jsonData[key];
-            npcs.push(item);
-            tiles[item.y][item.x].passable = false;
-        }
-    } catch (error) {
-        console.error('Error fetching or processing data:', error);
-    }
-}
-
+//Probably mostly fine
 function drawDialogueMenu() {
     if (!dialogueState.active) return;
 
@@ -541,15 +413,11 @@ function drawDialogueMenu() {
 
 let tiles;
 let player;
-let textBoxLayer = [];
 async function start(){
     //tiles array is stored y, x. each y row is an arraw and has the object at its x
     //tiles = generateTileMap();
     tiles = await loadMapTiles2D('scripts/map(5).json');
-    await loadNPCData('scripts/npcs.json');
     player = new OverworldPlayer(centerTileX, centerTileY, "#FFDFC4", 10, 3, 192, 100, ["fire", "ice"]);
-    textBoxLayer.push(new TextBox("Hello", "blue"));
-    textBoxLayer.push(new TextBox("World", "blue"));
     loop();
 }
 
@@ -565,16 +433,9 @@ function loop(currentTime){
             };
         });
     });
-    npcs.forEach(npc => {
-        if (onscreen(npc.x, npc.y) && npc.visible){
-            npcRender(npc, internalCtx);
-        }
-    });
-    if (textBoxLayer.length > 0) textBoxLayer.at(0).render(internalCtx, internalCanvas);
-    drawDialogueMenu();
 
     renderToScreen();
-    if (movingTime <= 0 && textBoxLayer.length == 0){
+    if (movingTime <= 0){
         if (up) {
             player.move("up");
             movingTime = player.moveSpeed;
@@ -591,20 +452,10 @@ function loop(currentTime){
     }
     if (toggleBoxCooldown > 0) toggleBoxCooldown-=1;
     if (toggleBox && toggleBoxCooldown <= 0) {
-        if (textBoxLayer.length > 0) {
-            textBoxLayer.shift();
-            toggleBoxCooldown = toggleBoxCooldownReset;
-        };
+        //TODO: Go to the next piece of text
     }
 
-    if (textBoxLayer.length <= 0 && functionQueue.length > 0){
-        functionQueue.forEach(func => {
-            func();
-        });
-        functionQueue = [];
-    }
-
-    if (toggleBox && textBoxLayer.length <= 0 && toggleBoxCooldown == 0){
+    if (toggleBox && /*TODO: Check if there is any text on screen &&*/ toggleBoxCooldown == 0){
         player.check();
     }
 
