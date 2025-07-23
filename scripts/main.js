@@ -294,7 +294,7 @@ class OverworldPlayer {
 
 //likely alright for now
 class TextBox{
-    constructor(text, color = "blue", picture){
+    constructor(text, picture, color = "blue"){
         this.text = text;
         this.picture = picture;
         this.picture == undefined ? this.picturePassed = false : this.picturePassed = true;
@@ -413,11 +413,15 @@ function drawDialogueMenu() {
 
 let tiles;
 let player;
+let textBoxArray = [];
+let currentTextBox;
 async function start(){
     //tiles array is stored y, x. each y row is an arraw and has the object at its x
     //tiles = generateTileMap();
     tiles = await loadMapTiles2D('scripts/map(5).json');
     player = new OverworldPlayer(centerTileX, centerTileY, "#FFDFC4", 10, 3, 192, 100, ["fire", "ice"]);
+    textBoxArray.push(new TextBox("Hello World"));
+    textBoxArray.push(new TextBox("My name is mastrcheef99"));
     loop();
 }
 
@@ -435,7 +439,31 @@ function loop(currentTime){
     });
 
     renderToScreen();
-    if (movingTime <= 0){
+    // Handle text boxes
+    if (!currentTextBox && textBoxArray.length > 0) {
+        currentTextBox = textBoxArray.shift();
+    }
+
+    if (currentTextBox) {
+        currentTextBox.render(internalCtx, internalCanvas);
+        renderToScreen();
+        
+        // Add a way to dismiss the text box (e.g., press Z)
+        if (toggleBox && toggleBoxCooldown === 0) {
+            currentTextBox = null;
+            toggleBoxCooldown = toggleBoxCooldownReset;
+        }
+    }
+
+    // Cooldown management
+    if (toggleBoxCooldown > 0) {
+        toggleBoxCooldown -= 1;
+    }
+
+    if (toggleBox && !currentTextBox && toggleBoxCooldown == 0){
+        player.check();
+    }
+    if (movingTime <= 0 && !currentTextBox){
         if (up) {
             player.move("up");
             movingTime = player.moveSpeed;
@@ -449,14 +477,6 @@ function loop(currentTime){
             player.move("right");
             movingTime = player.moveSpeed;
         }
-    }
-    if (toggleBoxCooldown > 0) toggleBoxCooldown-=1;
-    if (toggleBox && toggleBoxCooldown <= 0) {
-        //TODO: Go to the next piece of text
-    }
-
-    if (toggleBox && /*TODO: Check if there is any text on screen &&*/ toggleBoxCooldown == 0){
-        player.check();
     }
 
     if (movingTime > 0){
